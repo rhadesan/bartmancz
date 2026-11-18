@@ -1,0 +1,68 @@
+# htaccess rules for subdomains and aliases
+# to create new subdomain, create a folder www/subdom/(subdomain name)
+# to create web for alias, create a folder www/domains/(whole domain name)
+
+# htaccess pravidla pro subdomeny a samostatne weby aliasu
+# pro vytvoreni subdomeny vytvorte adresar www/subdom/(nazev subdomeny)
+# pro vytvoreni webu pro alias vytvorte adresar www/domains/(cely domenovy nazev)
+# dalsi info a priklady: http://kb.wedos.com/r/32/webhosting-htaccess.html
+
+RewriteEngine On
+
+RewriteCond %{HTTP_HOST} ^mail\.bartman\.cz$
+RewriteRule (.*) http://roundcube.wedos.net/$1 [R=301]
+
+RewriteCond %{HTTP_HOST} ^posta\.bartman\.cz$
+RewriteRule (.*) http://webmail-59690.m90.wedos.net/$1 [R=301]
+
+# cele domeny (aliasy)
+RewriteCond %{REQUEST_URI} !^domains/
+RewriteCond %{REQUEST_URI} !^/domains/
+RewriteCond %{HTTP_HOST} ^(www\.)?(.*)$
+RewriteCond %{DOCUMENT_ROOT}/domains/%2 -d
+RewriteRule (.*) domains/%2/$1 [DPI]
+
+# subdomeny (s nebo bez www na zacatku)
+RewriteCond %{REQUEST_URI} !^subdom/
+RewriteCond %{REQUEST_URI} !^/subdom/
+RewriteCond %{HTTP_HOST} ^(www\.)?(.*)\.([^\.]*)\.([^\.]*)$
+RewriteCond %{DOCUMENT_ROOT}/subdom/%2 -d
+RewriteRule (.*) subdom/%2/$1 [DPI]
+
+# aliasy - spravne presmerovani pri chybejicim /
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^domains/[^/]+/(.+[^/])$ /$1/ [R]
+
+# subdomeny - spravne presmerovani pri chybejicim /
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^subdom/[^/]+/(.+[^/])$ /$1/ [R]
+
+# =============================================================================
+# Hlavní web bartman.cz — doplněno nad šablonu Wedosu výš.
+#
+# ┌──────────────────────────────────────────────────────────────────────┐
+# │  ŠABLONU VÝŠ NEMĚNIT. Tenhle soubor leží ve www/, v kořeni celého    │
+# │  hostingu, a šablona posílá <jméno>.bartman.cz do www/subdom/<jméno>/ │
+# │  (voda, kalimba) a mail./posta. na webmail (HOSTING §3).             │
+# └──────────────────────────────────────────────────────────────────────┘
+# =============================================================================
+
+# --- Jen přes https -----------------------------------------------------------
+# Jen host bartman.cz a www.bartman.cz; subdomény si https řeší samy ve svém
+# .htaccess. Wedos sám na https nepřesměruje, %{HTTPS} za WEDOS.protection
+# platí (HOSTING §3). Host se nemění.
+RewriteCond %{HTTP_HOST} ^(www\.)?bartman\.cz$ [NC]
+RewriteCond %{HTTPS} !=on
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+# --- Cache --------------------------------------------------------------------
+# Celý web je jeden index.html bez dalších souborů. Krátce a s revalidací,
+# ať se změna projeví do pár minut; CDN k tomu sama přidá
+# stale-while-revalidate (HOSTING §1).
+#
+# Schválně <If> s hostem a cestou, ne <Files "index.html">: <Files> by
+# platilo i v podadresářích, tedy i pro index.html subdomén, a Apache ho
+# skládá až po jejich .htaccess — kalimbě by přepsalo `private` na `public`.
+<If "%{HTTP_HOST} =~ /^(www\.)?bartman\.cz$/i && %{REQUEST_URI} in {'/', '/index.html'}">
+    Header set Cache-Control "public, max-age=300, must-revalidate"
+</If>
